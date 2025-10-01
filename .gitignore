@@ -1,0 +1,19 @@
+node_modules/
+.env
+*.log
+
+# WhatsApp session data
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Telegram session data
+*.session
+telegram_session.json
+
+# Temporary files
+temp/
+downloads/
+
+# Cache directory
+temp/cache/
+

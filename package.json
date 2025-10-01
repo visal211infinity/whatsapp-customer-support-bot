@@ -1,0 +1,28 @@
+{
+  "name": "whatsapp-telegram-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp customer support bot with Telegram integration",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "telegram",
+    "bot",
+    "customer-support"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "whatsapp-web.js": "^1.24.0",
+    "qrcode-terminal": "^0.12.0",
+    "telegram": "^2.22.2",
+    "input": "^1.0.1",
+    "dotenv": "^16.4.5",
+    "puppeteer": "^21.0.0",
+    "pg": "^8.13.1"
+  }
+}
