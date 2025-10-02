@@ -92,8 +92,9 @@ class WhatsAppTelegramBot {
     this.whatsappManager = new WhatsAppManager(accountNames);
 
     // Register message handler
+    const botId = parseInt(process.env.BOT_ID || "1");
     this.whatsappManager.onMessage((message, client, accountName) => {
-      return this.messageHandler.handle(message, client, accountName);
+      return this.messageHandler.handle(message, client, accountName, botId);
     });
 
     // Initialize WhatsApp clients

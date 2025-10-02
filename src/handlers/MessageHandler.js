@@ -27,8 +27,9 @@ class MessageHandler {
    * @param {Object} message - WhatsApp message object
    * @param {Object} client - WhatsApp client instance
    * @param {string} accountName - Account identifier
+   * @param {number} botId - Bot ID for database tracking
    */
-  async handle(message, client, accountName) {
+  async handle(message, client, accountName, botId) {
     // Ignore group messages and status updates
     if (message.from === "status@broadcast") return;
 
@@ -38,14 +39,10 @@ class MessageHandler {
     console.log(`\n📨 [${accountName}] Message from ${chatId}: ${messageText}`);
 
     // Get or create user in database
-    const user = await this.databaseManager.getOrCreateUser(
-      chatId,
-      "whatsapp",
-      {
-        phoneNumber: chatId.split("@")[0],
-        name: message._data.notifyName || "Unknown",
-      }
-    );
+    const user = await this.databaseManager.getOrCreateUser(chatId, botId, {
+      phoneNumber: chatId.split("@")[0],
+      name: message._data.notifyName || "Unknown",
+    });
 
     // Welcome new users
     if (user.is_new_user && !this.activeRequests.has(chatId)) {

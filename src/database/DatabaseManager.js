@@ -31,7 +31,7 @@ class DatabaseManager {
         CREATE TABLE IF NOT EXISTS chat_users (
           id SERIAL PRIMARY KEY,
           chat_id VARCHAR(255) UNIQUE NOT NULL,
-          platform VARCHAR(50) NOT NULL,
+          bot_id INTEGER NOT NULL,
           phone_number VARCHAR(50),
           name VARCHAR(255),
           is_new_user BOOLEAN DEFAULT true,
@@ -57,11 +57,11 @@ class DatabaseManager {
   /**
    * Get or create user
    * @param {string} chatId - Chat ID
-   * @param {string} platform - Platform (whatsapp, telegram, etc)
+   * @param {number} botId - Bot ID (will connect to bot_user table)
    * @param {Object} userData - Additional user data
    * @returns {Promise<Object>} User object
    */
-  async getOrCreateUser(chatId, platform = "whatsapp", userData = {}) {
+  async getOrCreateUser(chatId, botId, userData = {}) {
     try {
       // Check if user exists
       const checkResult = await this.pool.query(
@@ -90,10 +90,10 @@ class DatabaseManager {
 
       // Create new user
       const insertResult = await this.pool.query(
-        `INSERT INTO chat_users (chat_id, platform, phone_number, name, is_new_user)
+        `INSERT INTO chat_users (chat_id, bot_id, phone_number, name, is_new_user)
          VALUES ($1, $2, $3, $4, true)
          RETURNING *`,
-        [chatId, platform, userData.phoneNumber || null, userData.name || null]
+        [chatId, botId, userData.phoneNumber || null, userData.name || null]
       );
 
       const newUser = insertResult.rows[0];
@@ -137,7 +137,7 @@ class DatabaseManager {
       const result = await this.pool.query(
         `SELECT 
           chat_id,
-          platform,
+          bot_id,
           total_requests,
           last_series_requested,
           created_at,
