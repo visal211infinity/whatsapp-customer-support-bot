@@ -17,3 +17,11 @@ downloads/
 # Cache directory
 temp/cache/
 
+# TypeScript build output
+dist/
+*.tsbuildinfo
+
+# TypeScript legacy files (can be removed)
+src/**/*.js
+config/**/*.js
+

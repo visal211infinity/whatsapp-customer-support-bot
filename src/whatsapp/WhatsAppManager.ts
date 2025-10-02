@@ -1,12 +1,19 @@
 import pkg from "whatsapp-web.js";
 const { Client, LocalAuth } = pkg;
+import type { Client as WAClient, Message as WAMessage } from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
+import { MessageHandler, WhatsAppClientInfo } from "../types";
 
 /**
  * Manages multiple WhatsApp client instances
  */
 class WhatsAppManager {
-  constructor(accountNames = ["default"]) {
+  private accountNames: string[];
+  private clients: Map<string, WAClient>;
+  private readyClients: Set<string>;
+  private messageHandlers: MessageHandler[];
+
+  constructor(accountNames: string[] = ["default"]) {
     this.accountNames = accountNames;
     this.clients = new Map();
     this.readyClients = new Set();
@@ -15,17 +22,15 @@ class WhatsAppManager {
 
   /**
    * Register a message handler
-   * @param {Function} handler - Function to handle incoming messages
    */
-  onMessage(handler) {
+  onMessage(handler: MessageHandler): void {
     this.messageHandlers.push(handler);
   }
 
   /**
    * Create and initialize a WhatsApp client
-   * @param {string} accountName - Unique identifier for the account
    */
-  createClient(accountName) {
+  private createClient(accountName: string): WAClient {
     const client = new Client({
       authStrategy: new LocalAuth({ clientId: accountName }),
       puppeteer: {
@@ -45,7 +50,7 @@ class WhatsAppManager {
     });
 
     // QR Code generation
-    client.on("qr", (qr) => {
+    client.on("qr", (qr: string) => {
       console.log(`\n📱 QR Code for account: ${accountName}`);
       console.log("Scan this QR code with WhatsApp:");
       qrcode.generate(qr, { small: true });
@@ -63,7 +68,7 @@ class WhatsAppManager {
     });
 
     // Message handling
-    client.on("message", async (message) => {
+    client.on("message", async (message: WAMessage) => {
       // Execute all registered message handlers
       for (const handler of this.messageHandlers) {
         try {
@@ -78,13 +83,13 @@ class WhatsAppManager {
     });
 
     // Disconnection
-    client.on("disconnected", (reason) => {
+    client.on("disconnected", (reason: string) => {
       console.log(`⚠️  Client disconnected: ${accountName}. Reason:`, reason);
       this.readyClients.delete(accountName);
     });
 
     // Error handling
-    client.on("auth_failure", (msg) => {
+    client.on("auth_failure", (msg: string) => {
       console.error(`❌ Authentication failure for ${accountName}:`, msg);
     });
 
@@ -94,7 +99,7 @@ class WhatsAppManager {
   /**
    * Initialize all WhatsApp clients
    */
-  async initializeAll() {
+  async initializeAll(): Promise<void> {
     console.log(
       `🔧 Initializing ${this.accountNames.length} WhatsApp account(s)...`
     );
@@ -110,39 +115,38 @@ class WhatsAppManager {
 
   /**
    * Get a specific client
-   * @param {string} accountName - Account identifier
-   * @returns {Client|null}
    */
-  getClient(accountName) {
+  getClient(accountName: string): WAClient | null {
     return this.clients.get(accountName) || null;
   }
 
   /**
    * Get the first available ready client
-   * @returns {Object|null} - {client, accountName}
    */
-  getAvailableClient() {
+  getAvailableClient(): WhatsAppClientInfo | null {
     for (const accountName of this.readyClients) {
-      return {
-        client: this.clients.get(accountName),
-        accountName,
-      };
+      const client = this.clients.get(accountName);
+      if (client) {
+        return {
+          client,
+          accountName,
+        };
+      }
     }
     return null;
   }
 
   /**
    * Check if all clients are ready
-   * @returns {boolean}
    */
-  allClientsReady() {
+  allClientsReady(): boolean {
     return this.readyClients.size === this.accountNames.length;
   }
 
   /**
    * Destroy all clients
    */
-  async destroyAll() {
+  async destroyAll(): Promise<void> {
     console.log("🛑 Destroying all WhatsApp clients...");
     for (const [accountName, client] of this.clients) {
       await client.destroy();

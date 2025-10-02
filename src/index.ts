@@ -3,6 +3,7 @@ import WhatsAppManager from "./whatsapp/WhatsAppManager.js";
 import TelegramService from "./telegram/TelegramClient.js";
 import MessageHandler from "./handlers/MessageHandler.js";
 import DatabaseManager from "./database/DatabaseManager.js";
+import type { PoolConfig } from "pg";
 
 // Load environment variables
 dotenv.config();
@@ -11,6 +12,11 @@ dotenv.config();
  * Main application class
  */
 class WhatsAppTelegramBot {
+  private whatsappManager: WhatsAppManager | null;
+  private telegramService: TelegramService | null;
+  private messageHandler: MessageHandler | null;
+  private databaseManager: DatabaseManager | null;
+
   constructor() {
     this.whatsappManager = null;
     this.telegramService = null;
@@ -21,7 +27,7 @@ class WhatsAppTelegramBot {
   /**
    * Validate environment variables
    */
-  validateConfig() {
+  private validateConfig(): void {
     const required = [
       "TELEGRAM_API_ID",
       "TELEGRAM_API_HASH",
@@ -45,7 +51,7 @@ class WhatsAppTelegramBot {
   /**
    * Initialize all services
    */
-  async initialize() {
+  async initialize(): Promise<void> {
     console.log("🚀 Starting WhatsApp-Telegram Customer Support Bot...\n");
 
     this.validateConfig();
@@ -54,13 +60,16 @@ class WhatsAppTelegramBot {
     console.log("═══════════════════════════════════════");
     console.log("  STEP 1: Initialize Database");
     console.log("═══════════════════════════════════════");
-    this.databaseManager = new DatabaseManager({
+
+    const dbConfig: PoolConfig = {
       host: process.env.DB_HOST || "localhost",
-      port: process.env.DB_PORT || 5432,
-      user: process.env.DB_USER,
+      port: parseInt(process.env.DB_PORT || "5432"),
+      user: process.env.DB_USER!,
       password: process.env.DB_PASSWORD || "",
-      database: process.env.DB_NAME,
-    });
+      database: process.env.DB_NAME!,
+    };
+
+    this.databaseManager = new DatabaseManager(dbConfig);
     await this.databaseManager.initialize();
 
     // Initialize Telegram service
@@ -68,16 +77,18 @@ class WhatsAppTelegramBot {
     console.log("  STEP 2: Initialize Telegram Client");
     console.log("═══════════════════════════════════════");
     this.telegramService = new TelegramService(
-      process.env.TELEGRAM_API_ID,
-      process.env.TELEGRAM_API_HASH,
+      process.env.TELEGRAM_API_ID!,
+      process.env.TELEGRAM_API_HASH!,
       process.env.TELEGRAM_SESSION_NAME || "telegram_session"
     );
     await this.telegramService.connect();
 
     // Initialize message handler
+    const botId = parseInt(process.env.BOT_ID || "1");
     this.messageHandler = new MessageHandler(
       this.telegramService,
-      this.databaseManager
+      this.databaseManager,
+      botId
     );
 
     // Initialize WhatsApp manager
@@ -92,9 +103,8 @@ class WhatsAppTelegramBot {
     this.whatsappManager = new WhatsAppManager(accountNames);
 
     // Register message handler
-    const botId = parseInt(process.env.BOT_ID || "1");
     this.whatsappManager.onMessage((message, client, accountName) => {
-      return this.messageHandler.handle(message, client, accountName, botId);
+      return this.messageHandler!.handle(message, client, accountName);
     });
 
     // Initialize WhatsApp clients
@@ -108,7 +118,7 @@ class WhatsAppTelegramBot {
   /**
    * Graceful shutdown
    */
-  async shutdown() {
+  async shutdown(): Promise<void> {
     console.log("\n\n🛑 Shutting down gracefully...");
 
     if (this.telegramService) {

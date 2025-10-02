@@ -1,16 +1,30 @@
 import fs from "fs";
 import path from "path";
+import {
+  CacheConfig,
+  CacheMetadata,
+  CacheStats,
+  SeriesMetadata,
+} from "../types";
 
 /**
  * Smart cache manager with LRU and size-based eviction
  */
 class CacheManager {
-  constructor(cacheDir = "./temp/cache", config = {}) {
+  private cacheDir: string;
+  private config: {
+    maxCacheSize: number;
+    maxAge: number;
+    metadataFile: string;
+  };
+  private metadata: CacheMetadata;
+
+  constructor(cacheDir: string = "./temp/cache", config: CacheConfig = {}) {
     this.cacheDir = cacheDir;
     this.config = {
       maxCacheSize: config.maxCacheSize || 1024 * 1024 * 1024, // 1GB default
       maxAge: config.maxAge || 7 * 24 * 60 * 60 * 1000, // 7 days default
-      metadataFile: path.join(cacheDir, "metadata.json"),
+      metadataFile: config.metadataFile || path.join(cacheDir, "metadata.json"),
     };
     this.metadata = this.loadMetadata();
     this.ensureCacheDir();
@@ -19,7 +33,7 @@ class CacheManager {
   /**
    * Ensure cache directory exists
    */
-  ensureCacheDir() {
+  private ensureCacheDir(): void {
     if (!fs.existsSync(this.cacheDir)) {
       fs.mkdirSync(this.cacheDir, { recursive: true });
     }
@@ -28,13 +42,13 @@ class CacheManager {
   /**
    * Load metadata from file
    */
-  loadMetadata() {
+  private loadMetadata(): CacheMetadata {
     try {
       if (fs.existsSync(this.config.metadataFile)) {
         const data = fs.readFileSync(this.config.metadataFile, "utf-8");
-        return JSON.parse(data);
+        return JSON.parse(data) as CacheMetadata;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.warn("⚠️  Failed to load cache metadata:", error.message);
     }
     return {};
@@ -43,13 +57,13 @@ class CacheManager {
   /**
    * Save metadata to file
    */
-  saveMetadata() {
+  private saveMetadata(): void {
     try {
       fs.writeFileSync(
         this.config.metadataFile,
         JSON.stringify(this.metadata, null, 2)
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ Failed to save cache metadata:", error.message);
     }
   }
@@ -57,21 +71,21 @@ class CacheManager {
   /**
    * Get series cache directory
    */
-  getSeriesDir(seriesCode) {
+  private getSeriesDir(seriesCode: string): string {
     return path.join(this.cacheDir, seriesCode);
   }
 
   /**
    * Get video cache path
    */
-  getVideoPath(seriesCode, videoId) {
+  private getVideoPath(seriesCode: string, videoId: string): string {
     return path.join(this.getSeriesDir(seriesCode), `${videoId}.mp4`);
   }
 
   /**
    * Check if video is cached
    */
-  isCached(seriesCode, videoId) {
+  isCached(seriesCode: string, videoId: string): boolean {
     const videoPath = this.getVideoPath(seriesCode, videoId);
     return fs.existsSync(videoPath);
   }
@@ -79,14 +93,14 @@ class CacheManager {
   /**
    * Check if entire series is cached
    */
-  isSeriesCached(seriesCode, videoIds) {
+  isSeriesCached(seriesCode: string, videoIds: string[]): boolean {
     return videoIds.every((id) => this.isCached(seriesCode, id));
   }
 
   /**
    * Get cached video path
    */
-  getCachedVideo(seriesCode, videoId) {
+  getCachedVideo(seriesCode: string, videoId: string): string | null {
     const videoPath = this.getVideoPath(seriesCode, videoId);
     if (fs.existsSync(videoPath)) {
       // Update access time
@@ -99,7 +113,11 @@ class CacheManager {
   /**
    * Cache a video
    */
-  cacheVideo(seriesCode, videoId, filePath) {
+  cacheVideo(
+    seriesCode: string,
+    videoId: string,
+    filePath: string
+  ): string | null {
     try {
       const seriesDir = this.getSeriesDir(seriesCode);
       if (!fs.existsSync(seriesDir)) {
@@ -133,7 +151,7 @@ class CacheManager {
 
       this.saveMetadata();
       return targetPath;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`❌ Failed to cache video ${videoId}:`, error.message);
       return null;
     }
@@ -142,7 +160,7 @@ class CacheManager {
   /**
    * Update access time for a series
    */
-  updateAccessTime(seriesCode, videoId) {
+  private updateAccessTime(seriesCode: string, videoId: string): void {
     if (this.metadata[seriesCode]) {
       this.metadata[seriesCode].lastAccessAt = Date.now();
       this.metadata[seriesCode].accessCount++;
@@ -153,7 +171,7 @@ class CacheManager {
   /**
    * Get cache statistics
    */
-  getCacheStats() {
+  getCacheStats(): CacheStats {
     let totalSize = 0;
     let totalFiles = 0;
 
@@ -177,7 +195,7 @@ class CacheManager {
   /**
    * Clean old cache entries
    */
-  cleanOldEntries() {
+  private cleanOldEntries(): void {
     console.log("🧹 Cleaning old cache entries...");
     const now = Date.now();
     let cleaned = 0;
@@ -212,7 +230,7 @@ class CacheManager {
   /**
    * Clean cache based on size (LRU eviction)
    */
-  cleanBySize() {
+  private cleanBySize(): void {
     const stats = this.getCacheStats();
 
     if (stats.totalSize <= this.config.maxCacheSize) {
@@ -270,7 +288,7 @@ class CacheManager {
   /**
    * Remove a series from cache
    */
-  removeSeries(seriesCode) {
+  removeSeries(seriesCode: string): void {
     const seriesDir = this.getSeriesDir(seriesCode);
 
     try {
@@ -279,7 +297,7 @@ class CacheManager {
       }
       delete this.metadata[seriesCode];
       this.saveMetadata();
-    } catch (error) {
+    } catch (error: any) {
       console.error(`❌ Failed to remove series ${seriesCode}:`, error.message);
     }
   }
@@ -287,7 +305,7 @@ class CacheManager {
   /**
    * Perform full cache cleanup
    */
-  cleanup() {
+  cleanup(): void {
     console.log("\n🧹 Starting cache cleanup...");
     this.cleanOldEntries();
     this.cleanBySize();
@@ -309,7 +327,7 @@ class CacheManager {
   /**
    * Clear entire cache
    */
-  clearAll() {
+  clearAll(): void {
     console.log("🗑️  Clearing entire cache...");
 
     try {
@@ -320,7 +338,7 @@ class CacheManager {
       this.ensureCacheDir();
       this.saveMetadata();
       console.log("✅ Cache cleared");
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ Failed to clear cache:", error.message);
     }
   }

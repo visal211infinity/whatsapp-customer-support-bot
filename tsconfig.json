@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "commonjs",
+    "module": "ESNext",
     "lib": ["ES2020"],
     "moduleResolution": "node",
     "esModuleInterop": true,
@@ -14,8 +14,9 @@
     "rootDir": "./",
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "allowJs": true
   },
-  "include": ["whatsapp-telegram-bot.ts", "usage-example.ts"],
-  "exclude": ["node_modules", "dist", "src"]
+  "include": ["src/**/*", "config/**/*"],
+  "exclude": ["node_modules", "dist", "temp", ".wwebjs_auth", ".wwebjs_cache"]
 }

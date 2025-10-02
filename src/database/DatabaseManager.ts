@@ -1,11 +1,15 @@
 import pkg from "pg";
 const { Pool } = pkg;
+import type { Pool as PoolType, PoolConfig, QueryResult } from "pg";
+import { ChatUser, UserData } from "../types";
 
 /**
  * Database Manager for PostgreSQL
  */
 class DatabaseManager {
-  constructor(config) {
+  private pool: PoolType;
+
+  constructor(config: PoolConfig) {
     this.pool = new Pool({
       host: config.host || "localhost",
       port: config.port || 5432,
@@ -14,7 +18,7 @@ class DatabaseManager {
       database: config.database,
     });
 
-    this.pool.on("error", (err) => {
+    this.pool.on("error", (err: Error) => {
       console.error("❌ Unexpected database error:", err);
     });
   }
@@ -22,7 +26,7 @@ class DatabaseManager {
   /**
    * Initialize database tables
    */
-  async initialize() {
+  async initialize(): Promise<void> {
     try {
       console.log("🔧 Initializing database tables...");
 
@@ -56,15 +60,15 @@ class DatabaseManager {
 
   /**
    * Get or create user
-   * @param {string} chatId - Chat ID
-   * @param {number} botId - Bot ID (will connect to bot_user table)
-   * @param {Object} userData - Additional user data
-   * @returns {Promise<Object>} User object
    */
-  async getOrCreateUser(chatId, botId, userData = {}) {
+  async getOrCreateUser(
+    chatId: string,
+    botId: number,
+    userData: UserData = {}
+  ): Promise<ChatUser> {
     try {
       // Check if user exists
-      const checkResult = await this.pool.query(
+      const checkResult: QueryResult<ChatUser> = await this.pool.query(
         "SELECT * FROM chat_users WHERE chat_id = $1",
         [chatId]
       );
@@ -89,7 +93,7 @@ class DatabaseManager {
       }
 
       // Create new user
-      const insertResult = await this.pool.query(
+      const insertResult: QueryResult<ChatUser> = await this.pool.query(
         `INSERT INTO chat_users (chat_id, bot_id, phone_number, name, is_new_user)
          VALUES ($1, $2, $3, $4, true)
          RETURNING *`,
@@ -109,10 +113,8 @@ class DatabaseManager {
 
   /**
    * Update user's series request
-   * @param {string} chatId - Chat ID
-   * @param {string} seriesCode - Series code requested
    */
-  async updateUserRequest(chatId, seriesCode) {
+  async updateUserRequest(chatId: string, seriesCode: string): Promise<void> {
     try {
       await this.pool.query(
         `UPDATE chat_users 
@@ -129,10 +131,8 @@ class DatabaseManager {
 
   /**
    * Get user statistics
-   * @param {string} chatId - Chat ID
-   * @returns {Promise<Object>} User stats
    */
-  async getUserStats(chatId) {
+  async getUserStats(chatId: string): Promise<any | null> {
     try {
       const result = await this.pool.query(
         `SELECT 
@@ -157,7 +157,7 @@ class DatabaseManager {
   /**
    * Get all users count
    */
-  async getTotalUsers() {
+  async getTotalUsers(): Promise<number> {
     try {
       const result = await this.pool.query(
         "SELECT COUNT(*) as count FROM chat_users"
@@ -172,7 +172,7 @@ class DatabaseManager {
   /**
    * Get new users today
    */
-  async getNewUsersToday() {
+  async getNewUsersToday(): Promise<number> {
     try {
       const result = await this.pool.query(
         `SELECT COUNT(*) as count 
@@ -189,7 +189,7 @@ class DatabaseManager {
   /**
    * Close database connection
    */
-  async close() {
+  async close(): Promise<void> {
     await this.pool.end();
     console.log("👋 Database connection closed");
   }

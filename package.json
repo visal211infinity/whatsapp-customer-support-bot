@@ -1,18 +1,21 @@
 {
   "name": "whatsapp-telegram-bot",
   "version": "1.0.0",
-  "description": "WhatsApp customer support bot with Telegram integration",
-  "main": "src/index.js",
+  "description": "WhatsApp customer support bot with Telegram integration - TypeScript",
+  "main": "dist/src/index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "build": "tsc",
+    "start": "node dist/src/index.js",
+    "dev": "tsx watch src/index.ts",
+    "type-check": "tsc --noEmit"
   },
   "keywords": [
     "whatsapp",
     "telegram",
     "bot",
-    "customer-support"
+    "customer-support",
+    "typescript"
   ],
   "author": "",
   "license": "MIT",
@@ -24,5 +27,12 @@
     "dotenv": "^16.4.5",
     "puppeteer": "^21.0.0",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
   }
 }

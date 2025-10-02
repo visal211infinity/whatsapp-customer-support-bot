@@ -1,17 +1,36 @@
 import { getTelegramGroup, isValidSeries } from "../../config/series.config.js";
 import pkg from "whatsapp-web.js";
 const { MessageMedia } = pkg;
+import type {
+  Message as WAMessage,
+  Client as WAClient,
+  MessageMedia as WAMessageMedia,
+} from "whatsapp-web.js";
 import fs from "fs";
 import path from "path";
 import CacheManager from "../utils/CacheManager.js";
+import TelegramService from "../telegram/TelegramClient.js";
+import DatabaseManager from "../database/DatabaseManager.js";
+import { VideoInfo } from "../types";
 
 /**
  * Customer support message handler
  */
 class MessageHandler {
-  constructor(telegramService, databaseManager) {
+  private telegramService: TelegramService;
+  private databaseManager: DatabaseManager;
+  private activeRequests: Map<string, string>;
+  private cacheManager: CacheManager;
+  private botId: number;
+
+  constructor(
+    telegramService: TelegramService,
+    databaseManager: DatabaseManager,
+    botId: number
+  ) {
     this.telegramService = telegramService;
     this.databaseManager = databaseManager;
+    this.botId = botId;
     this.activeRequests = new Map(); // Track active requests per chat
     this.cacheManager = new CacheManager("./temp/cache", {
       maxCacheSize: 1024 * 1024 * 1024, // 1GB
@@ -24,12 +43,12 @@ class MessageHandler {
 
   /**
    * Main message handling logic
-   * @param {Object} message - WhatsApp message object
-   * @param {Object} client - WhatsApp client instance
-   * @param {string} accountName - Account identifier
-   * @param {number} botId - Bot ID for database tracking
    */
-  async handle(message, client, accountName, botId) {
+  async handle(
+    message: WAMessage,
+    client: WAClient,
+    accountName: string
+  ): Promise<void> {
     // Ignore group messages and status updates
     if (message.from === "status@broadcast") return;
 
@@ -39,10 +58,14 @@ class MessageHandler {
     console.log(`\n📨 [${accountName}] Message from ${chatId}: ${messageText}`);
 
     // Get or create user in database
-    const user = await this.databaseManager.getOrCreateUser(chatId, botId, {
-      phoneNumber: chatId.split("@")[0],
-      name: message._data.notifyName || "Unknown",
-    });
+    const user = await this.databaseManager.getOrCreateUser(
+      chatId,
+      this.botId,
+      {
+        phoneNumber: chatId.split("@")[0],
+        name: (message as any)._data.notifyName || "Unknown",
+      }
+    );
 
     // Welcome new users
     if (user.is_new_user && !this.activeRequests.has(chatId)) {
@@ -80,10 +103,8 @@ class MessageHandler {
 
   /**
    * Check if message is a series request
-   * @param {string} text - Message text
-   * @returns {boolean}
    */
-  isSeriesRequest(text) {
+  private isSeriesRequest(text: string): boolean {
     // Match pattern like AB001, AB002, etc.
     const seriesPattern = /^[A-Z]{2}\d{3}$/i;
     return seriesPattern.test(text);
@@ -91,12 +112,13 @@ class MessageHandler {
 
   /**
    * Handle series request
-   * @param {string} seriesCode - Series code (e.g., AB001)
-   * @param {string} chatId - Chat ID
-   * @param {Object} message - WhatsApp message object
-   * @param {Object} client - WhatsApp client instance
    */
-  async handleSeriesRequest(seriesCode, chatId, message, client) {
+  private async handleSeriesRequest(
+    seriesCode: string,
+    chatId: string,
+    message: WAMessage,
+    client: WAClient
+  ): Promise<void> {
     // Check if already processing a request for this chat
     if (this.activeRequests.has(chatId)) {
       await message.reply(
@@ -122,6 +144,9 @@ class MessageHandler {
 
       // Get Telegram group username
       const groupUsername = getTelegramGroup(code);
+      if (!groupUsername) {
+        throw new Error(`No Telegram group found for series ${code}`);
+      }
 
       await message.reply(
         `✅ Found series: ${code}\n\n` +
@@ -183,12 +208,13 @@ class MessageHandler {
 
   /**
    * Send videos to customer in order
-   * @param {Array} videos - Array of video objects
-   * @param {string} chatId - Chat ID
-   * @param {Object} client - WhatsApp client instance
-   * @param {string} seriesCode - Series code for caching
    */
-  async sendVideosInOrder(videos, chatId, client, seriesCode) {
+  private async sendVideosInOrder(
+    videos: VideoInfo[],
+    chatId: string,
+    client: WAClient,
+    seriesCode: string
+  ): Promise<void> {
     const tempDir = "./temp";
 
     for (let i = 0; i < videos.length; i++) {
@@ -201,7 +227,7 @@ class MessageHandler {
           `📤 Sending video ${videoNumber}/${videos.length} to ${chatId}`
         );
 
-        let filePath;
+        let filePath: string;
 
         // Check if video is cached
         const cachedPath = this.cacheManager.getCachedVideo(
@@ -260,9 +286,8 @@ class MessageHandler {
 
   /**
    * Send welcome message to new users
-   * @param {Object} message - WhatsApp message object
    */
-  async sendWelcomeMessage(message) {
+  private async sendWelcomeMessage(message: WAMessage): Promise<void> {
     const welcomeText = `
 🎬 *Welcome to Our Video Library!*
 
@@ -285,9 +310,8 @@ Let's get started! Type "list" to see what's available. 🚀
 
   /**
    * Send list of available series
-   * @param {Object} message - WhatsApp message object
    */
-  async sendSeriesList(message) {
+  private async sendSeriesList(message: WAMessage): Promise<void> {
     const { seriesMapping } = await import("../../config/series.config.js");
 
     const seriesList = Object.keys(seriesMapping)
@@ -311,9 +335,8 @@ Total series available: ${Object.keys(seriesMapping).length}
 
   /**
    * Send help message
-   * @param {Object} message - WhatsApp message object
    */
-  async sendHelpMessage(message) {
+  private async sendHelpMessage(message: WAMessage): Promise<void> {
     const helpText = `
 📖 *Customer Support Bot - Help*
 
@@ -341,9 +364,8 @@ If you need assistance, please contact our support team.
 
   /**
    * Clean temporary directory (only files, not cache subdirectory)
-   * @param {string} dirPath - Directory path
    */
-  cleanTempDirectory(dirPath) {
+  private cleanTempDirectory(dirPath: string): void {
     try {
       if (fs.existsSync(dirPath)) {
         const files = fs.readdirSync(dirPath);
@@ -364,9 +386,8 @@ If you need assistance, please contact our support team.
 
   /**
    * Sleep utility
-   * @param {number} ms - Milliseconds to sleep
    */
-  sleep(ms) {
+  private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
